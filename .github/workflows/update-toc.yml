@@ -1,0 +1,43 @@
+name: Update Table of Contents
+
+on:
+  push:
+    paths:
+      - "**/*.md"
+      - "**/*.ipynb"
+      - "**/*.py"
+      - "!README.md" # README 변경만으로는 트리거되지 않도록 방지
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # 레포지토리에 푸시할 수 있는 권한 부여
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.9"
+
+      - name: Run TOC generator script
+        run: |
+          python scripts/generate_toc.py
+
+      - name: Commit and Push changes
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
+          # 변경 사항이 있을 때만 커밋
+          if [[ -n $(git status -s README.md) ]]; then
+            git add README.md
+            # [skip ci]를 추가하여 무한 루프 방지
+            git commit -m "docs: update TOC in README [skip ci]"
+            git push
+          else
+            echo "No changes in TOC."
+          fi
