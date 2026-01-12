@@ -5,7 +5,6 @@ import urllib.parse
 
 # 설정
 README_PATH = "README.md"
-TARGET_EXTENSIONS = (".md", ".ipynb", ".py")
 TOC_HEADER = "## 목차 (Table of Contents)"
 TOC_MARKER_START = ""
 TOC_MARKER_END = ""
@@ -19,15 +18,12 @@ def get_files_with_numbering(root_dir="."):
     for f in os.listdir(root_dir):
         match = pattern.match(f)
         if match:
-            # (숫자값, 파일명, 확장자) 튜플 저장
             files.append((int(match.group(1)), f, match.group(2)))
 
-    # 숫자 순서대로 정렬
     return sorted(files, key=lambda x: x[0])
 
 
 def generate_anchor(text):
-    # GitHub 스타일 앵커 생성 (소문자, 특수문자 제거, 공백은 -로)
     text = text.lower().strip()
     text = re.sub(r"[^\w\s-]", "", text)
     text = re.sub(r"[\s]+", "-", text)
@@ -36,14 +32,16 @@ def generate_anchor(text):
 
 def parse_md_headings(filepath):
     headings = []
-    with open(filepath, "r", encoding="utf-8") as f:
-        for line in f:
-            # # 으로 시작하는 라인 감지
-            match = re.match(r"^(#{1,6})\s+(.*)", line)
-            if match:
-                level = len(match.group(1))
-                title = match.group(2).strip()
-                headings.append({"level": level, "title": title})
+    try:
+        with open(filepath, "r", encoding="utf-8") as f:
+            for line in f:
+                match = re.match(r"^(#{1,6})\s+(.*)", line)
+                if match:
+                    headings.append(
+                        {"level": len(match.group(1)), "title": match.group(2).strip()}
+                    )
+    except Exception as e:
+        print(f"Error parsing {filepath}: {e}")
     return headings
 
 
@@ -57,34 +55,44 @@ def parse_ipynb_headings(filepath):
                     for line in cell.get("source", []):
                         match = re.match(r"^(#{1,6})\s+(.*)", line)
                         if match:
-                            level = len(match.group(1))
-                            title = match.group(2).strip()
-                            headings.append({"level": level, "title": title})
-    except Exception as e:
-        print(f"Error parsing {filepath}: {e}")
+                            headings.append(
+                                {
+                                    "level": len(match.group(1)),
+                                    "title": match.group(2).strip(),
+                                }
+                            )
+    except:
+        pass
     return headings
 
 
 def parse_py_headings(filepath):
     headings = []
-    # .py 파일은 '# ## 제목' 또는 '# 제목' 등의 관례를 따름
-    # 여기서는 '# ## ' 처럼 주석 안에 마크다운 헤더가 있는 경우를 가정
-    with open(filepath, "r", encoding="utf-8") as f:
-        for line in f:
-            match = re.match(r"^\s*#\s+(#{1,6})\s+(.*)", line)
-            if match:
-                level = len(match.group(1))
-                title = match.group(2).strip()
-                headings.append({"level": level, "title": title})
+    try:
+        with open(filepath, "r", encoding="utf-8") as f:
+            for line in f:
+                # # ## 제목 or # 제목 형식 파싱
+                match = re.match(r"^\s*#\s+(#{1,6})\s+(.*)", line)
+                if match:
+                    headings.append(
+                        {"level": len(match.group(1)), "title": match.group(2).strip()}
+                    )
+    except:
+        pass
     return headings
 
 
-def generate_toc_content():
+def generate_toc_string():
     files = get_files_with_numbering()
-    lines = [TOC_MARKER_START, TOC_HEADER]
+    lines = []
+
+    lines.append(TOC_MARKER_START)
+    lines.append(TOC_HEADER)
+
+    if not files:
+        lines.append("\n_목차에 표시할 파일이 없습니다._")
 
     for num, filename, ext in files:
-        # 파일 링크 생성 (URL 인코딩 필요)
         file_link = urllib.parse.quote(filename)
         lines.append(f"\n### [{filename}]({file_link})")
 
@@ -97,9 +105,9 @@ def generate_toc_content():
             headings = parse_py_headings(filename)
 
         for h in headings:
-            indent = "  " * (h["level"] - 1)  # 들여쓰기 조정
-            # .py는 내부 앵커 동작 불가하므로 파일 링크로 대체하거나 링크 제거
+            indent = "  " * (h["level"] - 1)
             if ext == ".py":
+                # .py 파일은 내부 앵커가 동작하지 않으므로 링크 없이 텍스트만 출력
                 lines.append(f"{indent}- {h['title']}")
             else:
                 anchor = generate_anchor(h["title"])
@@ -110,26 +118,34 @@ def generate_toc_content():
 
 
 def update_readme():
-    toc_content = generate_toc_content()
+    new_toc_content = generate_toc_string()
 
+    # README가 없으면 새로 생성
     if not os.path.exists(README_PATH):
         with open(README_PATH, "w", encoding="utf-8") as f:
-            f.write(toc_content)
+            f.write(new_toc_content)
+        print("README.md created with TOC.")
         return
 
+    # README 읽기
     with open(README_PATH, "r", encoding="utf-8") as f:
         content = f.read()
 
-    # 기존 TOC 마커가 있으면 교체, 없으면 상단에 추가
+    # 정규식으로 ... 영역 찾기 (re.DOTALL은 줄바꿈 포함 매칭)
     pattern = re.compile(
-        f"{re.escape(TOC_MARKER_START)}.*{re.escape(TOC_MARKER_END)}", re.DOTALL
+        f"{re.escape(TOC_MARKER_START)}.*?{re.escape(TOC_MARKER_END)}", re.DOTALL
     )
 
     if pattern.search(content):
-        new_content = pattern.sub(toc_content, content)
+        # 마커가 있으면 해당 부분만 교체 (Replace)
+        new_content = pattern.sub(new_toc_content, content)
+        print("Existing TOC updated.")
     else:
-        new_content = toc_content + "\n\n" + content
+        # 마커가 없으면 파일 맨 앞에 추가 (Prepend)
+        new_content = new_toc_content + "\n\n" + content
+        print("TOC added to the top.")
 
+    # 변경된 내용 저장
     with open(README_PATH, "w", encoding="utf-8") as f:
         f.write(new_content)
 
