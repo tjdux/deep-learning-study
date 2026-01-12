@@ -2,17 +2,20 @@ name: Update Table of Contents
 
 on:
   push:
+    # README.md 파일이 변경되었을 때는 이 액션을 실행하지 않음 (무한 루프 방지 핵심)
+    paths-ignore:
+      - "README.md"
+    # 그 외의 파일 변경 시 실행
     paths:
       - "**/*.md"
       - "**/*.ipynb"
       - "**/*.py"
-      - "!README.md" # README 변경만으로는 트리거되지 않도록 방지
 
 jobs:
   build:
     runs-on: ubuntu-latest
     permissions:
-      contents: write # 레포지토리에 푸시할 수 있는 권한 부여
+      contents: write
 
     steps:
       - name: Checkout code
@@ -35,7 +38,7 @@ jobs:
           # 변경 사항이 있을 때만 커밋
           if [[ -n $(git status -s README.md) ]]; then
             git add README.md
-            # [skip ci]를 추가하여 무한 루프 방지
+            # [skip ci]는 CI 실행을 건너뛰라는 명령입니다
             git commit -m "docs: update TOC in README [skip ci]"
             git push
           else
