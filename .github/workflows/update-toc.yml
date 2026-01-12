@@ -1,15 +1,16 @@
 name: Update Table of Contents
 
 on:
+  # 1. 수동 실행 버튼 추가 (Actions 탭에서 클릭 가능)
+  workflow_dispatch:
+
+  # 2. 푸시 트리거 조건 단순화
   push:
-    # README.md 파일이 변경되었을 때는 이 액션을 실행하지 않음 (무한 루프 방지 핵심)
+    branches:
+      - main
+      - master # 브랜치 이름이 master인 경우를 대비
     paths-ignore:
-      - "README.md"
-    # 그 외의 파일 변경 시 실행
-    paths:
-      - "**/*.md"
-      - "**/*.ipynb"
-      - "**/*.py"
+      - "README.md" # README 수정 시에는 자동 실행 방지 (루프 방지)
 
 jobs:
   build:
@@ -28,17 +29,22 @@ jobs:
 
       - name: Run TOC generator script
         run: |
-          python scripts/generate_toc.py
+          # 스크립트가 존재하는지 확인 후 실행
+          if [ -f "scripts/generate_toc.py" ]; then
+              python scripts/generate_toc.py
+          else
+              echo "Error: scripts/generate_toc.py file not found!"
+              exit 1
+          fi
 
       - name: Commit and Push changes
         run: |
           git config --global user.name "github-actions[bot]"
           git config --global user.email "github-actions[bot]@users.noreply.github.com"
 
-          # 변경 사항이 있을 때만 커밋
+          # README.md 변경 사항이 있을 때만 커밋
           if [[ -n $(git status -s README.md) ]]; then
             git add README.md
-            # [skip ci]는 CI 실행을 건너뛰라는 명령입니다
             git commit -m "docs: update TOC in README [skip ci]"
             git push
           else
