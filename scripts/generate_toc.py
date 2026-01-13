@@ -6,32 +6,15 @@ import urllib.parse
 # 설정
 README_PATH = "README.md"
 TOC_HEADER = "## 목차 (Table of Contents)"
-TOC_MARKER_START = ""
-TOC_MARKER_END = ""
+TOC_MARKER_START = "<!-- TOC START -->"
+TOC_MARKER_END = "<!-- TOC END -->"
 
-def get_files_with_numbering(root_dir='.'):
+def get_ipynb_files(root_dir='.'):
     files = []
-    # 정규식: 숫자로 시작하는 파일명 (예: 01_intro.md, 01file.py)
-    pattern = re.compile(r'^(\d+).*\.(md|ipynb|py)$')
-    
     for f in os.listdir(root_dir):
-        match = pattern.match(f)
-        if match:
-            files.append((int(match.group(1)), f, match.group(2)))
-    
-    return sorted(files, key=lambda x: x[0])
-
-def parse_md_headings(filepath):
-    headings = []
-    try:
-        with open(filepath, 'r', encoding='utf-8') as f:
-            for line in f:
-                match = re.match(r'^(#{1,6})\s+(.*)', line)
-                if match:
-                    headings.append({'level': len(match.group(1)), 'title': match.group(2).strip()})
-    except Exception as e:
-        print(f"Error parsing {filepath}: {e}")
-    return headings
+        if f.endswith('.ipynb'):
+            files.append(f)
+    return sorted(files)
 
 def parse_ipynb_headings(filepath):
     headings = []
@@ -50,44 +33,26 @@ def parse_ipynb_headings(filepath):
         print(f"Error parsing {filepath}: {e}")
     return headings
 
-def parse_py_headings(filepath):
-    headings = []
-    try:
-        with open(filepath, 'r', encoding='utf-8') as f:
-            for line in f:
-                match = re.match(r'^\s*#\s+(#{1,6})\s+(.*)', line)
-                if match:
-                    headings.append({'level': len(match.group(1)), 'title': match.group(2).strip()})
-    except:
-        pass
-    return headings
-
 def generate_toc_string():
-    files = get_files_with_numbering()
+    files = get_ipynb_files()
     lines = [TOC_MARKER_START, TOC_HEADER]
-    
+
     if not files:
         lines.append("\n_목차에 표시할 파일이 없습니다._")
-    
-    for num, filename, ext in files:
-        # 파일 이름에는 링크 연결
+
+    for filename in files:
+        # 파일 이름에만 링크 연결
         file_link = urllib.parse.quote(filename)
         lines.append(f"\n### [{filename}]({file_link})")
-        
-        headings = []
-        if ext == '.md':
-            headings = parse_md_headings(filename)
-        elif ext == '.ipynb':
-            headings = parse_ipynb_headings(filename)
-        elif ext == '.py':
-            headings = parse_py_headings(filename)
-            
+
+        headings = parse_ipynb_headings(filename)
+
         for h in headings:
             # 들여쓰기 처리
             indent = "  " * (h['level'] - 1)
-            # [수정됨] 모든 소제목은 링크 없이 텍스트만 출력
+            # 소제목은 링크 없이 텍스트만 출력
             lines.append(f"{indent}- {h['title']}")
-                
+
     lines.append("\n" + TOC_MARKER_END)
     return "\n".join(lines)
 

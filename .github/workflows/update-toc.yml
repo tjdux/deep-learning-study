@@ -3,11 +3,7 @@ name: Update Table of Contents
 on:
   push:
     paths:
-      - "**/*.md"
       - "**/*.ipynb"
-      - "**/*.py"
-      # 1차 방어선: README 변경은 트리거에서 제외
-      - "!README.md"
 
 jobs:
   update-toc:
